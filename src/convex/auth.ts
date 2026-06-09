@@ -78,10 +78,52 @@ export const createAuth = (
 				}
 			}
 		},
-		// Configure simple, non-verified email/password to get started
+		emailVerification: {
+			sendOnSignUp: true,
+			autoSignInAfterVerification: true,
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			sendVerificationEmail: async ({ user, url, token }, _request) => {
+				const resendApiKey = process.env.RESEND_API_KEY;
+				const from = process.env.RESET_EMAIL_FROM || 'ModernStack SaaS <no-reply@yourdomain.com>';
+				if (!resendApiKey) {
+					console.error('RESEND_API_KEY not set. Unable to send verification email.');
+					return;
+				}
+				try {
+					const res = await fetch('https://api.resend.com/emails', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${resendApiKey}`
+						},
+						body: JSON.stringify({
+							from,
+							to: user.email,
+							subject: 'Verify your email address',
+							...(process.env.RESET_EMAIL_REPLY_TO
+								? { reply_to: process.env.RESET_EMAIL_REPLY_TO }
+								: {}),
+							html: `<p>Hello ${user.name ?? 'there'},</p>
+<p>Welcome! Please verify your email address by clicking the button below:</p>
+<p><a href="${url}" style="display:inline-block;padding:10px 16px;background:#111827;color:#fff;border-radius:6px;text-decoration:none">Verify Email</a></p>
+<p>If the button doesn't work, copy and paste this URL into your browser:</p>
+<p><a href="${url}">${url}</a></p>
+<p>If you didn't create an account, you can safely ignore this email.</p>`
+						})
+					});
+					if (!res.ok) {
+						const text = await res.text();
+						console.error('Resend API error sending verification email:', res.status, text);
+					}
+				} catch (e) {
+					console.error('Failed to send verification email:', e);
+				}
+			}
+		},
+		// Email/password authentication with required verification
 		emailAndPassword: {
 			enabled: true,
-			requireEmailVerification: false,
+			requireEmailVerification: true,
 			// Send password reset emails via Resend
 			// token and _request are available if you need custom templates or logging
 			// eslint-disable-next-line @typescript-eslint/no-unused-vars

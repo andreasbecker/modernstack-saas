@@ -23,6 +23,7 @@
 	let isSignUp = $state(mode === 'signup');
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
+	let info = $state<string | null>(null);
 
 	$effect(() => {
 		authEmailCtx?.set(email);
@@ -32,14 +33,16 @@
 		e.preventDefault();
 		isLoading = true;
 		error = null;
+		info = null;
 
 		try {
 			if (isSignUp) {
 				await authClient.signUp.email(
-					{ name, email, password },
+					{ name, email, password, callbackURL: '/dashboard' },
 					{
 						onSuccess: () => {
-							goto(resolve('/dashboard'));
+							info = `We sent a verification link to ${email}. Please check your inbox to activate your account.`;
+							password = '';
 						},
 						onError: (ctx) => {
 							error = ctx.error.message;
@@ -93,6 +96,12 @@
 				{#if error}
 					<div class="rounded-md bg-red-50 p-3 text-sm text-red-800">
 						{error}
+					</div>
+				{/if}
+
+				{#if info}
+					<div class="rounded-md bg-green-50 p-3 text-sm text-green-800">
+						{info}
 					</div>
 				{/if}
 

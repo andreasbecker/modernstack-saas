@@ -56,28 +56,35 @@
 		}
 	}
 
+	async function uploadSelectedFile(file: File): Promise<string> {
+		// Step 1: Generate upload URL
+		const uploadUrl = await convexClient.mutation(api.storage.generateUploadUrl, {});
+
+		// Step 2: Upload file to Convex storage
+		const result = await fetch(uploadUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': file.type },
+			body: file
+		});
+
+		if (!result.ok) {
+			throw new Error('Failed to upload file to storage');
+		}
+
+		const { storageId } = await result.json();
+
+		// Step 3: Get the proper URL from Convex
+		const imageUrl = await convexClient.mutation(api.storage.getImageUrl, { storageId });
+
+		return imageUrl || '';
+	}
+
 	async function handleUploadImage() {
 		if (!selectedFile) return;
 
 		isLoading = true;
 		try {
-			// Step 1: Generate upload URL
-			const uploadUrl = await convexClient.mutation(api.storage.generateUploadUrl, {});
-
-			// Step 2: Upload file to Convex storage
-			const result = await fetch(uploadUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': selectedFile.type },
-				body: selectedFile
-			});
-
-			const { storageId } = await result.json();
-
-			// Step 3: Get the proper URL from Convex
-			const imageUrl = await convexClient.mutation(api.storage.getImageUrl, { storageId });
-
-			// Step 4: Update the image state
-			image = imageUrl || '';
+			image = await uploadSelectedFile(selectedFile);
 			selectedFile = null;
 
 			// Reset file input
@@ -117,9 +124,20 @@
 		isLoading = true;
 
 		try {
+			// If a file is selected but not yet uploaded, upload it first
+			let nextImage = image;
+			if (selectedFile) {
+				nextImage = await uploadSelectedFile(selectedFile);
+				image = nextImage;
+				selectedFile = null;
+				if (fileInput) {
+					fileInput.value = '';
+				}
+			}
+
 			await authClient.updateUser({
 				name,
-				image: image || null
+				image: nextImage || null
 			});
 
 			toast.success('Profile updated successfully');
